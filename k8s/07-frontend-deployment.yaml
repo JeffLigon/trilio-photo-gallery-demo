@@ -44,7 +44,7 @@ spec:
               mountPath: /sql
       containers:
         - name: web
-          image: ghcr.io/placeholder/trilio-photo-gallery:latest
+          image: jeffligon/trilio-photo-gallery-demo:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
