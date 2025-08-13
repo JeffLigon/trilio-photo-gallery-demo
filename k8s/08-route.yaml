@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: trilio-gallery
+  namespace: trilio-demo
+spec:
+  host: jeff-trilio-demo.apps.ocp-dev.demo.presales.trilio.io
+  to:
+    kind: Service
+    name: trilio-gallery-frontend
+    weight: 100
+  port:
+    targetPort: http
+  # Enable TLS if your cluster issues certs (uncomment for edge termination)
+  # tls:
+  #   termination: edge
+  #   insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trilio-gallery-mysql
+  namespace: trilio-demo
+  labels: { app: trilio-gallery, tier: mysql }
+spec:
+  selector:
+    matchLabels: { app: trilio-gallery, tier: mysql }
+  strategy: { type: Recreate }
+  template:
+    metadata:
+      labels: { app: trilio-gallery, tier: mysql }
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-pass
+                  key: password
+            - name: MYSQL_DATABASE
+              value: triliogallery
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: mysql-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trilio-gallery-mysql
+  namespace: trilio-demo
+  labels: { app: trilio-gallery }
+spec:
+  ports:
+    - port: 3306
+  selector: { app: trilio-gallery, tier: mysql }
+  clusterIP: None

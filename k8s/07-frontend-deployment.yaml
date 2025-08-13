@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trilio-gallery-frontend
+  namespace: trilio-demo
+  labels: { app: trilio-gallery, tier: frontend }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: trilio-gallery, tier: frontend }
+  template:
+    metadata:
+      labels: { app: trilio-gallery, tier: frontend }
+    spec:
+      initContainers:
+        - name: seed-media
+          image: alpine:3.20
+          command: ["sh","-c","mkdir -p /data/media && cp /seed/* /data/media/ || true"]
+          volumeMounts:
+            - name: media
+              mountPath: /data
+            - name: seed-media
+              mountPath: /seed
+        - name: seed-db
+          image: bitnami/mysql:8.0
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-pass
+                  key: password
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for MySQL...'
+              until mysqladmin ping -h trilio-gallery-mysql -uroot -p$MYSQL_PASSWORD --silent; do sleep 2; done
+              echo 'Applying schema...'
+              mysql -h trilio-gallery-mysql -uroot -p$MYSQL_PASSWORD < /sql/schema.sql
+              echo 'Applying seed...'
+              mysql -h trilio-gallery-mysql -uroot -p$MYSQL_PASSWORD < /sql/seed.sql
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+      containers:
+        - name: web
+          image: ghcr.io/placeholder/trilio-photo-gallery:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DB_HOST
+              value: trilio-gallery-mysql
+            - name: DB_USER
+              value: root
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-pass
+                  key: password
+            - name: DB_NAME
+              value: triliogallery
+            - name: MEDIA_DIR
+              value: /data/media
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-pv-claim
+        - name: seed-media
+          configMap:
+            name: gallery-seed-media
+        - name: sql
+          configMap:
+            name: gallery-sql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trilio-gallery-frontend
+  namespace: trilio-demo
+  labels: { app: trilio-gallery }
+spec:
+  type: ClusterIP
+  selector: { app: trilio-gallery, tier: frontend }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

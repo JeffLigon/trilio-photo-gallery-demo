@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trilio-gallery
+  namespace: trilio-demo
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: jeff-trilio-demo.apps.ocp-dev.demo.presales.trilio.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: trilio-gallery-frontend
+                port:
+                  number: 80
