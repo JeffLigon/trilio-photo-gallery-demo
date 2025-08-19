@@ -1,9 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: gallery-sql
+  name: trilio-gallery-sql
   namespace: trilio-demo
 data:
+  # Keep these filenames exactly; the initContainer mounts them at /db/
   schema.sql: |
     
     CREATE DATABASE IF NOT EXISTS triliogallery;
@@ -18,7 +19,7 @@ data:
     );
 
   seed.sql: |
-    
+
     USE triliogallery;
     INSERT INTO photos (title, caption, filename, size_bytes) VALUES
     ('Application Recovery', 'Build & Execute Reliable Strategy', 'seed-1.svg', 2048),

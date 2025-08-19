@@ -1,5 +1,4 @@
-
-// Trilio Photo Gallery - Express server (OpenShift-friendly)
+// Trilio Photo Gallery - Express server (OpenShift-ready, CSP-safe, no-cache for HTML/JS)
 const express = require('express');
 const fileUpload = require('express-fileupload');
 const mysql = require('mysql2/promise');
@@ -13,12 +12,36 @@ const PORT = process.env.PORT || 8080;
 const MEDIA_DIR = process.env.MEDIA_DIR || '/data/media';
 if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
-// DB config
+// DB env
 const DB_HOST = process.env.DB_HOST || 'trilio-gallery-mysql';
 const DB_USER = process.env.DB_USER || 'root';
 const DB_PASS = process.env.DB_PASS || 'trilio123';
 const DB_NAME = process.env.DB_NAME || 'triliogallery';
 
+// Basic no-cache headers for HTML/JS so demos always show fresh UI
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html') || req.path.endsWith('.js')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
+app.use(express.json());
+app.use(fileUpload());
+
+// Serve media from PVC
+app.use('/media', express.static(MEDIA_DIR, {
+  etag: false, lastModified: false, cacheControl: true, maxAge: 0, fallthrough: true
+}));
+
+// Serve static UI
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: false, lastModified: false, cacheControl: true, maxAge: 0
+}));
+
+// Connection pool helper
 async function getPool() {
   if (!app.locals.pool) {
     app.locals.pool = mysql.createPool({
@@ -27,23 +50,21 @@ async function getPool() {
       password: DB_PASS,
       database: DB_NAME,
       waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
+      connectionLimit: 10
     });
   }
   return app.locals.pool;
 }
 
-app.use(express.json());
-app.use(fileUpload());
-app.use('/media', express.static(MEDIA_DIR, { fallthrough: true }));
-
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
+// List photos
 app.get('/api/photos', async (req, res) => {
   try {
     const pool = await getPool();
-    const [rows] = await pool.query('SELECT id, title, caption, filename, size_bytes, created_at FROM photos ORDER BY id DESC');
+    const [rows] = await pool.query(
+      'SELECT id, title, caption, filename, size_bytes, created_at FROM photos ORDER BY id DESC'
+    );
     res.json(rows.map(r => ({
       id: r.id,
       title: r.title,
@@ -53,11 +74,12 @@ app.get('/api/photos', async (req, res) => {
       created_at: r.created_at
     })));
   } catch (e) {
-    console.error(e);
+    console.error('GET /api/photos error:', e.message);
     res.status(500).json({ error: 'DB error' });
   }
 });
 
+// Upload a new photo
 app.post('/api/upload', async (req, res) => {
   try {
     if (!req.files || !req.files.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -65,20 +87,24 @@ app.post('/api/upload', async (req, res) => {
     const safeName = Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const dest = path.join(MEDIA_DIR, safeName);
     await file.mv(dest);
+    const size = fs.statSync(dest).size;
 
     const title = (req.body.title || 'New Upload').toString().slice(0, 120);
     const caption = (req.body.caption || 'Uploaded during demo').toString().slice(0, 240);
-    const size = fs.statSync(dest).size;
 
     const pool = await getPool();
-    await pool.execute('INSERT INTO photos (title, caption, filename, size_bytes) VALUES (?, ?, ?, ?)', [title, caption, safeName, size]);
+    await pool.execute(
+      'INSERT INTO photos (title, caption, filename, size_bytes) VALUES (?, ?, ?, ?)',
+      [title, caption, safeName, size]
+    );
     res.json({ ok: true });
   } catch (e) {
-    console.error(e);
+    console.error('POST /api/upload error:', e.message);
     res.status(500).json({ error: 'Upload failed' });
   }
 });
 
+// Delete a photo
 app.delete('/api/photos/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -90,11 +116,9 @@ app.delete('/api/photos/:id', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (e) {
-    console.error(e);
+    console.error('DELETE /api/photos/:id error:', e.message);
     res.status(500).json({ error: 'Delete failed' });
   }
 });
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => console.log(`Trilio Photo Gallery listening on :${PORT}`));

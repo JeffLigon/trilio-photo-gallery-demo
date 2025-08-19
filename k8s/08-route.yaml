@@ -11,7 +11,7 @@ spec:
     weight: 100
   port:
     targetPort: http
-  # Enable TLS if your cluster issues certs (uncomment for edge termination)
+  # Uncomment to enable TLS edge termination:
   # tls:
   #   termination: edge
   #   insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,9 @@
+# .dockerignore
+.git
+node_modules
+Dockerfile*
+.dockerignore
+npm-debug.log*
+tmp
+*.md
+k8s/*.yaml
