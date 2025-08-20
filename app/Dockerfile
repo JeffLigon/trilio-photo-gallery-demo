@@ -28,4 +28,4 @@ RUN mkdir -p /data/media \
 USER 10001
 
 EXPOSE 8080
-CMD ["node", "app.js"]
+CMD ["node", "server.js"]

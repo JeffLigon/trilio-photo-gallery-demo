@@ -3,7 +3,9 @@ kind: Deployment
 metadata:
   name: trilio-gallery-mysql
   namespace: trilio-demo
-  labels: { app: trilio-gallery, tier: mysql }
+  labels: 
+    app: trilio-gallery
+    tier: mysql 
 spec:
   selector:
     matchLabels: { app: trilio-gallery, tier: mysql }

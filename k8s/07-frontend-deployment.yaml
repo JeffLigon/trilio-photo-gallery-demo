@@ -18,7 +18,7 @@ spec:
         app: trilio-gallery
         tier: frontend
     spec:
-      # Pod-level security (restricted-v2 friendly)
+      # restricted‑v2 friendly
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -32,7 +32,7 @@ spec:
             name: trilio-gallery-sql
 
       initContainers:
-        # 1) Copy baked media to PVC (no overwrite). No chmod needed.
+        # Copies baked media into PVC (no chmod needed)
         - name: seed-media
           image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.2
           imagePullPolicy: Always
@@ -59,7 +59,7 @@ spec:
             - name: media
               mountPath: /data/media
 
-        # 2) Apply schema.sql + seed.sql using a MySQL 8-capable client image
+        # Applies schema.sql + seed.sql using a MySQL 8–capable client
         - name: seed-db
           image: bitnami/mysql:8.0
           imagePullPolicy: IfNotPresent
@@ -116,10 +116,22 @@ spec:
         - name: web
           image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.2
           imagePullPolicy: Always
-          ports:
-            - name: http
-              containerPort: 8080
+
+          # Start app normally (no debug wrapper)
+          command: ["node"]
+          args: ["server.js"]
+
           env:
+            - name: NODE_ENV
+              value: "production"
+            - name: NODE_OPTIONS
+              value: "--trace-warnings"
+
+            # Explicit port to avoid framework defaults
+            - name: PORT
+              value: "8080"
+
+            # App configuration (same as before)
             - name: DB_HOST
               value: trilio-gallery-mysql
             - name: DB_USER
@@ -133,23 +145,56 @@ spec:
               value: triliogallery
             - name: MEDIA_DIR
               value: /data/media
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          # OpenShift restricted‑v2 compliant; do NOT set fsGroup or runAsUser
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
-            seccompProfile: { type: RuntimeDefault }
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+
           volumeMounts:
             - name: media
               mountPath: /data/media
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 10
+
+          # Probes DISABLED for diagnostics (re-enable after fixing)
+          # readinessProbe: {}
+          # livenessProbe: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trilio-gallery-frontend
+  namespace: trilio-demo
+  labels:
+    app: trilio-gallery
+    tier: frontend
+spec:
+  selector:
+    app: trilio-gallery
+    tier: frontend
+  ports:
+    - name: http
+      port: 80          # external service port (what the Route uses)
+      targetPort: 8080  # containerPort in your pod
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: trilio-gallery-frontend
+  namespace: trilio-demo
+spec:
+  to:
+    kind: Service
+    name: trilio-gallery-frontend
+    weight: 100
+  port:
+    targetPort: http    # <— matches the Service port name above
+  wildcardPolicy: None
