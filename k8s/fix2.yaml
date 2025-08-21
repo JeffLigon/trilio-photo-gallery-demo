@@ -1,7 +1,0 @@
-set -e
-echo "$(date -Is) [web] starting (WEB_DEBUG=${WEB_DEBUG:-0})"
-if [ "${WEB_DEBUG:-0}" = "1" ]; then
-  echo "$(date -Is) [web] debug hold: sleeping"
-  exec sleep infinity
-fi
-exec node app.js

@@ -21,7 +21,29 @@ data:
   seed.sql: |
 
     USE triliogallery;
+
+    -- Clear only our demo rows (optional but keeps re-seeds tidy)
+    DELETE FROM photos WHERE filename LIKE 'blog-%' OR filename LIKE 'seed-%';
+
+    -- Seed rows that match the filenames you baked into the image.
+    -- size_bytes can be left 0 (UI still renders); you can update later if desired.
     INSERT INTO photos (title, caption, filename, size_bytes) VALUES
-    ('Application Recovery', 'Build & Execute Reliable Strategy', 'seed-1.svg', 2048),
-    ('K8s Protection', 'Backup best practices', 'seed-2.svg', 2048),
-    ('Cross-Cloud Restore', 'Mobility simplified', 'seed-3.svg', 2048);
+      ('Application Recovery', 'Build & Execute Reliable Strategy', 'blog-01-application-recovery.jpg', 0),
+      ('Oracle Kubernetes Engine Backup', ' ', 'blog-02-oracle-kubernetes-engine-backup.jpg', 0),
+      ('Granular Recovery Tech', ' ', 'blog-03-granular-recovery-tech.jpg', 0),
+      ('Changed Block Tracking', ' ', 'blog-04-changed-block-tracking.jpg', 0),
+      ('Redis Backup Strategies', ' ', 'blog-05-redis-backup-strategies.jpg', 0),
+      ('Kubernetes PVC Backup', ' ', 'blog-06-kubernetes-pvc-backup.jpg', 0),
+      ('Proxmox vs OpenStack', ' ', 'blog-07-proxmox-vs-openstack.jpg', 0),
+      ('Snapshot vs Backup', ' ', 'blog-08-snapshot-vs-backup.jpg', 0),
+      ('Red Hat OpenShift on Azure', ' ', 'blog-09-red-hat-openshift-on-azure.jpg', 0),
+      ('Test Backup Recoverability', ' ', 'blog-10-test-backup-recoverability.jpg', 0),
+      ('KubeCon Europe Highlights', ' ', 'blog-11-kubecon-europe-highlights.jpg', 0),
+      ('OpenShift Data Foundation', ' ', 'blog-12-openshift-data-foundation.jpg', 0),
+
+      -- Keep your 3 seed SVGs (helps when PVC is empty)
+      ('Application Recovery', 'Build & Execute Reliable Strategy', 'seed-1.svg', 2048),
+      ('K8s Protection', 'Backup best practices', 'seed-2.svg', 2048),
+      ('Cross-Cloud Restore', 'Mobility simplified', 'seed-3.svg', 2048)
+    ON DUPLICATE KEY UPDATE
+      title=VALUES(title), caption=VALUES(caption), size_bytes=VALUES(size_bytes);

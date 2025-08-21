@@ -8,6 +8,12 @@ metadata:
     tier: frontend
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  revisionHistoryLimit: 5
   selector:
     matchLabels:
       app: trilio-gallery
@@ -34,7 +40,7 @@ spec:
       initContainers:
         # Copies baked media into PVC (no chmod needed)
         - name: seed-media
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.2
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.4
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
@@ -47,14 +53,16 @@ spec:
               set -e
               echo "$(date -Is) [seed-media] start"
               umask 0000
-              if [ ! -d /data/media ]; then
-                install -d -m 0777 /data/media || { echo "[seed-media] cannot create /data/media"; exit 1; }
-              fi
+              [ -d /data/media ] || install -d -m 0777 /data/media
+
+              before=$(ls -1 /data/media 2>/dev/null | wc -l || echo 0)
               if [ -d /app/public/media ]; then
                 cp -nv /app/public/media/* /data/media/ || true
               fi
+              # keep seed svgs as last resort
               cp -nv /app/public/seed-*.svg /data/media/ 2>/dev/null || true
-              echo "$(date -Is) [seed-media] done"
+              after=$(ls -1 /data/media 2>/dev/null | wc -l || echo 0)
+              echo "$(date -Is) [seed-media] done (files_before=$before, files_after=$after)"
           volumeMounts:
             - name: media
               mountPath: /data/media
@@ -103,10 +111,14 @@ spec:
                 sleep 5
               done
 
+              # Ensure DB exists
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e 'CREATE DATABASE IF NOT EXISTS `triliogallery`;'
+
+              # Apply schema/seed explicitly *to* triliogallery
               echo "$(date -Is) [seed-db] applying schema.sql"
-              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" < /db/schema.sql
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/schema.sql
               echo "$(date -Is) [seed-db] applying seed.sql"
-              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" < /db/seed.sql
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/seed.sql
               echo "$(date -Is) [seed-db] done"
           volumeMounts:
             - name: sql
@@ -114,7 +126,7 @@ spec:
 
       containers:
         - name: web
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.2
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.4
           imagePullPolicy: Always
 
           # Start app normally (no debug wrapper)
@@ -150,6 +162,35 @@ spec:
             - name: http
               containerPort: 8080
 
+          # Resource requests / limits
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+
+          # readinessProbe: {}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          
+          # livenessProbe: {}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+    
           # OpenShift restricted‑v2 compliant; do NOT set fsGroup or runAsUser
           securityContext:
             runAsNonRoot: true
@@ -163,9 +204,6 @@ spec:
             - name: media
               mountPath: /data/media
 
-          # Probes DISABLED for diagnostics (re-enable after fixing)
-          # readinessProbe: {}
-          # livenessProbe: {}
 ---
 apiVersion: v1
 kind: Service
