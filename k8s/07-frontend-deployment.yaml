@@ -1,3 +1,4 @@
+# Stable 1.0 branch used docker.io/jeffligon/trilio-photo-gallery-demo:v1.5
 apiVersion: apps/v1
 kind: Deployment
 metadata:
