@@ -64,6 +64,20 @@ oc rsh -n trilio-demo deploy/trilio-gallery-mysql --   sh -lc "mysql -uroot -p't
 - `scripts/fetch-seed.mjs` reads `seed-sources.json`, fetches `og:image` (or first `<img>`) and writes `public/media/*` + `db/seed.sql` with correct `size_bytes`.
 - If any URL fails at build time, the script logs and continues; you can swap entries in `seed-sources.json`.
 
+## Photo RESET Mode
+How to do a full reset when you want it.  This will clear any user added photos.
+
+Temporarily set RESET_SEED to true (one rollout), then put it back:
+```bash
+# enable one-time reset
+oc set env -n trilio-demo deploy/trilio-gallery-frontend RESET_SEED=true
+oc rollout restart -n trilio-demo deploy/trilio-gallery-frontend
+oc rollout status  -n trilio-demo deploy/trilio-gallery-frontend
+
+# return to additive mode
+oc set env -n trilio-demo deploy/trilio-gallery-frontend RESET_SEED=false
+```
+
 ## Git Commands
 ```bash
 # Make sure everything is committed first

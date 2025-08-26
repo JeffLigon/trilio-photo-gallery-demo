@@ -34,16 +34,27 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: media-pv-claim
-        - name: sql
-          configMap:
-            name: trilio-gallery-sql
-            items:
-              - key: schema.sql
-                path: schema.sql
-              - key: seed.sql
-                path: seed.sql
+        - name: sql-drop
+          emptyDir: {}
+        
 
       initContainers:
+      # Copy schema.sql and seed.sql out of the app image into a shared emptyDir
+        - name: copy-sql
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.7
+          imagePullPolicy: Always
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -eu
+              mkdir -p /db
+              cp -v /app/db/schema.sql /db/schema.sql
+              cp -v /app/db/seed.sql   /db/seed.sql
+              ls -l /db || true
+          volumeMounts:
+            - name: sql-drop
+              mountPath: /db
+
         # Copies baked media into PVC (no chmod needed)
         - name: seed-media
           image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.7
@@ -88,8 +99,11 @@ spec:
                 secretKeyRef:
                   name: mysql-pass
                   key: password
+            # Default: keep user-added rows. Set to "true" to wipe table before seeding.
+            - name: RESET_SEED
+              value: "false"
           volumeMounts:
-            - name: sql
+            - name: sql-drop
               mountPath: /db
               readOnly: true
           args:
@@ -110,10 +124,18 @@ spec:
                 echo "[seed-db] waiting for MySQL..."; sleep 3
               done
 
-              # DB, schema, clean, seed
+              # DB - Apply/refresh schema (idempotent)
               mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS triliogallery;"
               mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/schema.sql
-              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery -e "TRUNCATE TABLE photos;"
+              # Optional reset (only if explicitly requested)
+               if [ "${RESET_SEED:-false}" = "true" ]; then
+                 echo "[seed-db] RESET_SEED=true: truncating photos table..."
+                 mysql -h "$MYSQL_HOST" -uroot -p"$MYSQL_ROOT_PASSWORD" -D triliogallery -e "TRUNCATE TABLE photos;"
+               else
+                 echo "[seed-db] additive seed: keeping existing rows"
+               fi
+              
+              # Seed rows (should use UPSERTs in /db/seed.sql)
               mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/seed.sql
 
               # Validate
