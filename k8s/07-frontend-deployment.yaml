@@ -1,3 +1,4 @@
+# Stable 1.0 branch used docker.io/jeffligon/trilio-photo-gallery-demo:v1.5
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,11 +37,16 @@ spec:
         - name: sql
           configMap:
             name: trilio-gallery-sql
+            items:
+              - key: schema.sql
+                path: schema.sql
+              - key: seed.sql
+                path: seed.sql
 
       initContainers:
         # Copies baked media into PVC (no chmod needed)
         - name: seed-media
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.4
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
@@ -69,13 +75,9 @@ spec:
 
         # Applies schema.sql + seed.sql using a MySQL 8–capable client
         - name: seed-db
-          image: bitnami/mysql:8.0
+          image: docker.io/bitnami/mysql:8.0
           imagePullPolicy: IfNotPresent
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            capabilities: { drop: ["ALL"] }
-            seccompProfile: { type: RuntimeDefault }
+          command: ["/bin/sh","-lc"]   
           env:
             - name: MYSQL_HOST
               value: trilio-gallery-mysql
@@ -86,47 +88,43 @@ spec:
                 secretKeyRef:
                   name: mysql-pass
                   key: password
-          command: ["/bin/sh","-lc"]
-          args:
-            - |
-              set -e
-              export PATH="/opt/bitnami/mysql/bin:$PATH"
-              echo "$(date -Is) [seed-db] start"
-              echo "$(date -Is) [seed-db] mysql in PATH?"; command -v mysql || true
-              echo "$(date -Is) [seed-db] mysql --version:"; mysql --version || true
-              echo "$(date -Is) [seed-db] DNS check:"; getent hosts "$MYSQL_HOST" || true
-
-              i=0
-              until mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" >/dev/null 2> /tmp/mysql.err; do
-                i=$((i+1))
-                if [ $i -eq 1 ] || [ $((i%5)) -eq 0 ]; then
-                  echo "$(date -Is) [seed-db] still waiting on MySQL… attempt=$i"
-                  echo "----- mysql stderr -----"; cat /tmp/mysql.err || true; echo "------------------------"
-                fi
-                if [ $i -ge 48 ]; then
-                  echo "$(date -Is) [seed-db] timeout waiting for MySQL"
-                  echo "Last error:"; cat /tmp/mysql.err || true
-                  exit 1
-                fi
-                sleep 5
-              done
-
-              # Ensure DB exists
-              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e 'CREATE DATABASE IF NOT EXISTS `triliogallery`;'
-
-              # Apply schema/seed explicitly *to* triliogallery
-              echo "$(date -Is) [seed-db] applying schema.sql"
-              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/schema.sql
-              echo "$(date -Is) [seed-db] applying seed.sql"
-              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/seed.sql
-              echo "$(date -Is) [seed-db] done"
           volumeMounts:
             - name: sql
               mountPath: /db
+              readOnly: true
+          args:
+            - |
+              set -eu
+              export PATH="/opt/bitnami/mysql/bin:$PATH"   # <— add this line
+              echo "[seed-db] start"
+              command -v mysql && mysql --version || true
+              test -f /db/schema.sql && test -f /db/seed.sql
+
+              # Guard against old seed content
+              if grep -qE 'seed-.*\.svg' /db/seed.sql; then
+                echo "[seed-db] ERROR: /db/seed.sql contains seed-*.svg"; exit 1
+              fi
+
+              # Wait for MySQL
+              until mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; do
+                echo "[seed-db] waiting for MySQL..."; sleep 3
+              done
+
+              # DB, schema, clean, seed
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS triliogallery;"
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/schema.sql
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery -e "TRUNCATE TABLE photos;"
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery < /db/seed.sql
+
+              # Validate
+              mysql -h "$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -D triliogallery -e "
+                SELECT COUNT(*) AS rows_, ROUND(SUM(size_bytes)/1048576,2) AS total_MB FROM photos;
+              "
+              echo "[seed-db] done"
 
       containers:
         - name: web
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.4
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5
           imagePullPolicy: Always
 
           # Start app normally (no debug wrapper)

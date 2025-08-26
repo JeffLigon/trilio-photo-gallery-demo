@@ -64,4 +64,48 @@ oc rsh -n trilio-demo deploy/trilio-gallery-mysql --   sh -lc "mysql -uroot -p't
 - `scripts/fetch-seed.mjs` reads `seed-sources.json`, fetches `og:image` (or first `<img>`) and writes `public/media/*` + `db/seed.sql` with correct `size_bytes`.
 - If any URL fails at build time, the script logs and continues; you can swap entries in `seed-sources.json`.
 
-Generated: 2025-08-15T19:44:14.274709Z
+## Git Commands
+```bash
+# Make sure everything is committed first
+git add -A
+git commit -m "Stable working version with seed DB init (2025-08-20)"
+
+# 1. Create a stable branch you can keep working on
+git branch stable-20250820
+git push -u origin stable-20250820
+
+# 2. Create a tag that freezes *this exact commit forever*
+git tag v1.0-stable-20250820
+git push origin v1.0-stable-20250820
+```
+
+How you use them later
+
+To get the exact snapshot you have now (never changes):
+```bash
+git checkout v1.0-stable-20250820
+```
+
+To get the branch that may include your later tweaks:
+```bash
+git checkout stable-20250820
+git pull
+```
+
+Pro tip: you can keep doing this with future stable points. For example:
+```bash
+git tag v1.1-stable-20250825
+git push origin v1.1-stable-20250825
+```
+
+## Release Notes
+v1.0 Stable - Initial Release (image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5)
+  - Grid works
+  - Upload works
+  - Simulate disaster works 
+  
+  Known Issues to fix:
+  - Seeded grid photos don't match photo descriptions
+  - Simulate disaster works but deletes files out of PVC and database
+  - Restore only restores to original grid, any uploaded photos don't remain
+ 
