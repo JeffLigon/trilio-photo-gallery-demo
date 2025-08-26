@@ -103,7 +103,8 @@ v1.0 Stable - Initial Release (image: docker.io/jeffligon/trilio-photo-gallery-d
   - Grid works
   - Upload works
   - Simulate disaster works 
-Known Issues to fix:
+  
+  Known Issues to fix:
   - Seeded grid photos don't match photo descriptions
   - Simulate disaster works but deletes files out of PVC and database
   - Restore only restores to original grid, any uploaded photos don't remain
