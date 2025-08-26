@@ -46,7 +46,7 @@ spec:
       initContainers:
         # Copies baked media into PVC (no chmod needed)
         - name: seed-media
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.6
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
@@ -124,7 +124,7 @@ spec:
 
       containers:
         - name: web
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.6
           imagePullPolicy: Always
 
           # Start app normally (no debug wrapper)
