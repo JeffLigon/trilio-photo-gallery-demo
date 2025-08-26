@@ -112,6 +112,37 @@ git tag v1.1-stable-20250825
 git push origin v1.1-stable-20250825
 ```
 
+## Troubleshooting
+List what’s on the media PVC (all JPEGs the app can serve)
+```bash
+# Get a frontend pod (web container) name
+POD=$(kubectl get pod -n trilio-demo -l app=trilio-gallery,tier=frontend -o jsonpath='{.items[0].metadata.name}')
+
+# List files in the mounted media PVC
+kubectl exec -it -n trilio-demo $POD -c web -- ls -lh /data/media
+```
+
+That will show the filenames + sizes, so you can confirm both seeded and uploaded files are physically present on the PVC.
+
+Inspect what’s in the MySQL DB (metadata entries)
+```bash
+# Get the MySQL pod name
+MYSQL_POD=$(kubectl get pod -n trilio-demo -l app=trilio-gallery,tier=mysql -o jsonpath='{.items[0].metadata.name}')
+
+# Count rows + sample list
+kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
+  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -D triliogallery \
+    -e "SELECT COUNT(*) AS total_rows, ROUND(SUM(size_bytes)/1048576,2) AS total_mb FROM photos; \
+        SELECT id, filename, title, size_bytes FROM photos ORDER BY id DESC LIMIT 10;"'
+```
+
+This will show:
+
+The total row count (should be ≥ 12 if uploads are added to the 12 seeds).
+
+The most recent 10 rows with filename, title, and size_bytes for a quick sanity check.
+
+
 ## Release Notes
 v1.0 Stable - Initial Release (image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5)
   - Grid works
