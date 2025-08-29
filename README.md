@@ -29,6 +29,9 @@ Replace `<YOUR_REGISTRY>` and `<TAG>` in **three places** (seed-media, seed-db, 
 
 ## Deploy to OpenShift
 ```bash
+oc apply -f k8s/
+
+# or 1-by-1
 oc apply -f k8s/00-namespace.yaml
 oc apply -f k8s/01-mysql-secret.yaml
 oc apply -f k8s/02-mysql-pvc.yaml
@@ -131,34 +134,46 @@ git push origin v1.1-stable-20250825
 ```
 
 ## Troubleshooting
-List what’s on the media PVC (all JPEGs the app can serve)
+
+Verify files on media and rows in database:
 ```bash
-# Get a frontend pod (web container) name
+# Expect 12 files in media PVC:
+
+# Get a frontend pod name
 POD=$(kubectl get pod -n trilio-demo -l app=trilio-gallery,tier=frontend -o jsonpath='{.items[0].metadata.name}')
 
-# List files in the mounted media PVC
-kubectl exec -it -n trilio-demo $POD -c web -- ls -lh /data/media
-```
+# Count and show the files in /data/media
+kubectl exec -it -n trilio-demo $POD -c web -- sh -lc \
+  'ls -l /data/media | grep jpg | wc -l; ls -l /data/media'
 
-That will show the filenames + sizes, so you can confirm both seeded and uploaded files are physically present on the PVC.
 
-Inspect what’s in the MySQL DB (metadata entries)
-```bash
-# Get the MySQL pod name
+# DB has 12 rows:
+
+# Get the MySQL pod
 MYSQL_POD=$(kubectl get pod -n trilio-demo -l app=trilio-gallery,tier=mysql -o jsonpath='{.items[0].metadata.name}')
 
-# Count rows + sample list
+# Totals
 kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
-  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -D triliogallery \
-    -e "SELECT COUNT(*) AS total_rows, ROUND(SUM(size_bytes)/1048576,2) AS total_mb FROM photos; \
-        SELECT id, filename, title, size_bytes FROM photos ORDER BY id DESC LIMIT 10;"'
+  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -D triliogallery \
+    -e "SELECT COUNT(*) AS total_rows, ROUND(SUM(size_bytes)/1048576,2) AS total_mb FROM photos;"'
+
+# All rows (ordered by id ascending)
+kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
+  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -t -D triliogallery \
+    -e "SELECT id, filename, title, size_bytes FROM photos ORDER BY id;"'
 ```
 
 This will show:
-
 The total row count (should be ≥ 12 if uploads are added to the 12 seeds).
+All the database rows with filename, title, and size_bytes for a quick sanity check.
 
-The most recent 10 rows with filename, title, and size_bytes for a quick sanity check.
+------------------
+
+Delete all rows from the photos table
+```bash
+kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
+  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -D triliogallery -e "DELETE FROM photos;"'
+```
 
 
 ## Release Notes
