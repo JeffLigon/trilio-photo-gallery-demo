@@ -34,9 +34,7 @@ oc apply -f k8s/01-mysql-secret.yaml
 oc apply -f k8s/02-mysql-pvc.yaml
 oc apply -f k8s/03-mysql-deployment.yaml
 oc apply -f k8s/04-media-pvc.yaml
-oc apply -f k8s/05-sql-configmap.yaml
 oc apply -f k8s/07-frontend-deployment.yaml
-oc apply -f k8s/08-route.yaml
 ```
 
 Wait for pods:
@@ -52,10 +50,30 @@ http://jeff-trilio-demo.apps.ocp-dev.demo.presales.trilio.io
 ## Verify seeding worked
 ```bash
 # Expect 12 files:
-oc rsh -n trilio-demo deploy/trilio-gallery-frontend -- sh -lc "ls -l /data/media | wc -l; ls -l /data/media | head"
 
+# Get a frontend pod name
+POD=$(kubectl get pod -n trilio-demo -l app=trilio-gallery,tier=frontend -o jsonpath='{.items[0].metadata.name}')
+
+# Count and show the files in /data/media
+kubectl exec -it -n trilio-demo $POD -c web -- sh -lc \
+  'ls -l /data/media | grep jpg | wc -l; ls -l /data/media'
+  
 # DB has 12 rows:
-oc rsh -n trilio-demo deploy/trilio-gallery-mysql --   sh -lc "mysql -uroot -p'trilio123' -e \"USE triliogallery; SELECT COUNT(*) FROM photos; SELECT title,filename FROM photos LIMIT 5;\""
+
+# Get the MySQL pod
+MYSQL_POD=$(kubectl get pod -n trilio-demo -l app=trilio-gallery,tier=mysql -o jsonpath='{.items[0].metadata.name}')
+
+# Run a quick DB check
+
+# Totals
+kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
+  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -D triliogallery \
+    -e "SELECT COUNT(*) AS total_rows, ROUND(SUM(size_bytes)/1048576,2) AS total_mb FROM photos;"'
+
+# All rows (ordered by id ascending)
+kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
+  sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -t -D triliogallery \
+    -e "SELECT id, filename, title, size_bytes FROM photos ORDER BY id;"'
 ```
 
 ## Notes
