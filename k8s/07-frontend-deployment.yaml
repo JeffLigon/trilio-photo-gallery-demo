@@ -152,8 +152,8 @@ spec:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: trilio-gallery-mysql
-                  key: mysql-root-password
+                  name: mysql-pass
+                  key: password
             - name: MYSQL_HOST
               value: trilio-gallery-mysql
           command: ["/bin/sh","-lc"]
