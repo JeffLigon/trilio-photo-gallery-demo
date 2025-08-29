@@ -41,7 +41,7 @@ spec:
       initContainers:
       # Copy schema.sql and seed.sql out of the app image into a shared emptyDir
         - name: copy-sql
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.7
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.8
           imagePullPolicy: Always
           command: ["/bin/sh","-lc"]
           args:
@@ -57,7 +57,7 @@ spec:
 
         # Copies baked media into PVC (no chmod needed)
         - name: seed-media
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.7
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.8
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
@@ -143,10 +143,51 @@ spec:
                 SELECT COUNT(*) AS rows_, ROUND(SUM(size_bytes)/1048576,2) AS total_MB FROM photos;
               "
               echo "[seed-db] done"
+        
+        # NEW: reconcile any files that exist on the media PVC but are missing in DB
+        - name: reconcile-media-to-db
+          image: bitnami/mysql:8.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: trilio-gallery-mysql
+                  key: mysql-root-password
+            - name: MYSQL_HOST
+              value: trilio-gallery-mysql
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -eu
+              export PATH="/opt/bitnami/mysql/bin:$PATH"
+              # wait for DB
+              until mysql -h "$MYSQL_HOST" -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; do
+                echo "[reconcile] waiting for MySQL..."; sleep 2
+              done
+              # walk media dir and upsert any missing rows
+              shopt -s nullglob || true 2>/dev/null || true
+              for f in /data/media/*.jpg /data/media/*.jpeg; do
+                [ -f "$f" ] || continue
+                base="$(basename "$f")"
+                # portable size (works on busybox/ubI): 
+                size="$(wc -c < "$f" | tr -d ' ')"
+                # human-ish title from filename
+                title="$(printf "%s" "$base" | sed -E 's/\.(jpe?g)$//; s/[-_]+/ /g; s/\b(.)/\U\1/g')"
+                mysql -h "$MYSQL_HOST" -uroot -p"$MYSQL_ROOT_PASSWORD" -D triliogallery -e "
+                  INSERT INTO photos (filename,title,caption,size_bytes)
+                  VALUES ('$base','$title','', $size)
+                  ON DUPLICATE KEY UPDATE
+                    size_bytes=VALUES(size_bytes);"
+                echo "[reconcile] ensured $base ($size bytes)"
+              done
+          volumeMounts:
+            - name: media
+              mountPath: /data/media
 
       containers:
         - name: web
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.7
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.8
           imagePullPolicy: Always
 
           # Start app normally (no debug wrapper)

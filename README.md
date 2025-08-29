@@ -1,4 +1,4 @@
-# Trilio Photo Gallery – OpenShift (12-image seed, CSP-safe UI)
+# Trilio Photo Gallery – OpenShift 
 
 **What’s included**
 - Node/Express frontend (no inline JS; `app/public/app.js`)
