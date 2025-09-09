@@ -79,6 +79,22 @@ kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
     -e "SELECT id, filename, title, size_bytes FROM photos ORDER BY id;"'
 ```
 
+### Simulate Disaster
+
+Clicking **Simulate Disaster** now deletes **only the database rows** (media files on the PVC remain).
+
+**API (guarded):**
+```
+POST /api/disaster?confirm=DELETE
+```
+The button already calls this endpoint with the `?confirm=DELETE` parameter.
+
+**Demo flow:**
+1. Click *Simulate Disaster* → the grid goes blank.
+2. Use Trilio **Inclusions** to restore **MySQL deployment + PVC**.
+3. Refresh → seed + uploaded photos reappear.
+
+
 ## Notes
 - `server.js` adds **no-cache headers** for HTML/JS, so your UI updates appear immediately.
 - `imagePullPolicy: Always` forces pulls on every rollout (use immutable tags to be precise).
