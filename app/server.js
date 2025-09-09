@@ -111,6 +111,7 @@ app.post('/api/disaster', async (req, res) => {
     return res.status(400).json({ error: 'Add ?confirm=DELETE to run disaster' });
   }
   try {
+    const pool = await getPool();
     await pool.query('DELETE FROM photos');
     console.log('[disaster] deleted all rows from photos table');
     res.json({ ok: true, mode: 'db-only' });

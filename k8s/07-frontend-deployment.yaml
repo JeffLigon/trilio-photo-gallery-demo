@@ -41,7 +41,7 @@ spec:
       initContainers:
       # Copy schema.sql and seed.sql out of the app image into a shared emptyDir
         - name: copy-sql
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.9
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.10
           imagePullPolicy: Always
           command: ["/bin/sh","-lc"]
           args:
@@ -57,7 +57,7 @@ spec:
 
         # Copies baked media into PVC (no chmod needed)
         - name: seed-media
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.9
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.10
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
@@ -187,7 +187,7 @@ spec:
 
       containers:
         - name: web
-          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.9
+          image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.10
           imagePullPolicy: Always
 
           # Start app normally (no debug wrapper)
