@@ -104,6 +104,23 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
+// Simulate Disaster (DB-only): delete all rows, keep media PVC intact.
+// Safety guard: requires ?confirm=DELETE
+app.post('/api/disaster', async (req, res) => {
+  if (req.query.confirm !== 'DELETE') {
+    return res.status(400).json({ error: 'Add ?confirm=DELETE to run disaster' });
+  }
+  try {
+    const pool = await getPool();
+    await pool.query('DELETE FROM photos');
+    console.log('[disaster] deleted all rows from photos table');
+    res.json({ ok: true, mode: 'db-only' });
+  } catch (err) {
+    console.error('[disaster] error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Delete a photo
 app.delete('/api/photos/:id', async (req, res) => {
   try {

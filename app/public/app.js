@@ -94,11 +94,14 @@
 
     const b2 = document.getElementById('btn-disaster');
     if (b2) b2.addEventListener('click', async () => {
-      const items = await fetchJSON('/api/photos');
-      for (const it of items) {
-        await fetch('/api/photos/' + it.id, { method: 'DELETE' });
+      const resp = await fetch('/api/disaster?confirm=DELETE', { method: 'POST' });
+      if (resp.ok) {
+        showFlash('Disaster simulated (DB-only)');
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        showFlash('Disaster failed: ' + (err.error || resp.statusText));
       }
-      showFlash('Disaster simulated'); refresh();
+      refresh();
     });
 
     const b3 = document.getElementById('btn-restore');
