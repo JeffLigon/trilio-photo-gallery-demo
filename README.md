@@ -6,7 +6,7 @@
 - Build-time fetcher to download **12 Trilio blog images** → baked into image (`public/media/*`) and `db/seed.sql`
 - OpenShift-ready Deployment with **initContainers that seed from the image** (not ConfigMaps)
 - Restricted-v2 compliant security contexts; no `fsGroup`; PVC write enabled via `chmod 0777` in init
-- Route at `jeff-trilio-demo.apps.ocp-dev.demo.presales.trilio.io`
+- Route at `http://trilio-gallery-frontend-trilio-demo.apps.ocp-dev.demo.presales.trilio.io/`
 
 ## Build & Push (immutable tag recommended)
 ```bash
@@ -47,7 +47,7 @@ oc rollout status deploy/trilio-gallery-frontend -n trilio-demo
 
 Open:
 ```
-http://jeff-trilio-demo.apps.ocp-dev.demo.presales.trilio.io
+http://trilio-gallery-frontend-trilio-demo.apps.ocp-dev.demo.presales.trilio.io/
 ```
 
 ## Verify seeding worked
@@ -193,13 +193,16 @@ kubectl exec -it -n trilio-demo $MYSQL_POD -c mysql -- \
 
 
 ## Release Notes
-v1.0 Stable - Initial Release (image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5)
+v1.1 Bugs Fixed 
+  (image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.10)
+  - Seeded grid photos don't match photo descriptions
+  - Simulate disaster works but deletes files out of PVC and database
+  - Restore only restores to original grid, any uploaded photos don't remain
+
+v1.0 Stable - Initial Release 
+  (image: docker.io/jeffligon/trilio-photo-gallery-demo:v1.5)
   - Grid works
   - Upload works
   - Simulate disaster works 
   
-  Known Issues to fix:
-  - Seeded grid photos don't match photo descriptions
-  - Simulate disaster works but deletes files out of PVC and database
-  - Restore only restores to original grid, any uploaded photos don't remain
- 
+  
